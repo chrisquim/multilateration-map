@@ -494,16 +494,18 @@ async function initMap() {
   mapInstance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
   mapInstance.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
-  // Handle style loads (including when switching basemaps)
-  mapInstance.on('style.load', () => {
-    ensureMapLayers();
-    syncMapLayers();
-    // Re-verify all beacon markers are attached
-    beacons.forEach(b => {
-      if (!markersMap.has(b.id)) {
-        createMarkerForBeacon(b);
-      }
-    });
+  // Handle style loads and data updates (including when switching basemaps)
+  mapInstance.on('styledata', () => {
+    if (mapInstance.isStyleLoaded()) {
+      ensureMapLayers();
+      syncMapLayers();
+      // Re-verify all beacon markers are attached
+      beacons.forEach(b => {
+        if (!markersMap.has(b.id)) {
+          createMarkerForBeacon(b);
+        }
+      });
+    }
   });
 
   // Interactively drop beacon point via map click
