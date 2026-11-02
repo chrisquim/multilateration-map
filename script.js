@@ -370,7 +370,95 @@ function removeMarkerForBeacon(id) {
   }
 }
 
-// 9. Map Layers Setup
+// 9. Map Layers Setup & Style Transformation
+function applyCustomLayersToStyle(styleSpec) {
+  if (!styleSpec) return styleSpec;
+
+  const sources = {
+    ...(styleSpec.sources || {}),
+    beacons: {
+      type: 'geojson',
+      data: getBeaconsGeoJSON()
+    },
+    preview: {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] }
+    }
+  };
+
+  const customLayerIds = new Set([
+    'beacons-fill',
+    'beacons-stroke',
+    'preview-fill',
+    'preview-stroke',
+    'preview-center'
+  ]);
+  const baseLayers = (styleSpec.layers || []).filter(l => !customLayerIds.has(l.id));
+
+  const customLayers = [
+    {
+      id: 'beacons-fill',
+      type: 'fill',
+      source: 'beacons',
+      filter: ['==', '$type', 'Polygon'],
+      paint: {
+        'fill-color': ['get', 'color'],
+        'fill-opacity': 0.22
+      }
+    },
+    {
+      id: 'beacons-stroke',
+      type: 'line',
+      source: 'beacons',
+      filter: ['==', '$type', 'Polygon'],
+      paint: {
+        'line-color': ['get', 'color'],
+        'line-width': 2.5,
+        'line-opacity': 0.95
+      }
+    },
+    {
+      id: 'preview-fill',
+      type: 'fill',
+      source: 'preview',
+      filter: ['==', '$type', 'Polygon'],
+      paint: {
+        'fill-color': '#38bdf8',
+        'fill-opacity': 0.16
+      }
+    },
+    {
+      id: 'preview-stroke',
+      type: 'line',
+      source: 'preview',
+      filter: ['==', '$type', 'Polygon'],
+      paint: {
+        'line-color': '#38bdf8',
+        'line-width': 2.5,
+        'line-dasharray': [3, 2]
+      }
+    },
+    {
+      id: 'preview-center',
+      type: 'circle',
+      source: 'preview',
+      filter: ['==', '$type', 'Point'],
+      paint: {
+        'circle-color': '#38bdf8',
+        'circle-radius': 4.5,
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#ffffff'
+      }
+    }
+  ];
+
+  return {
+    ...styleSpec,
+    sources,
+    layers: [...baseLayers, ...customLayers]
+  };
+}
+
 function ensureMapLayers() {
   if (!mapInstance) return;
 
@@ -393,6 +481,8 @@ function ensureMapLayers() {
         'fill-opacity': 0.22
       }
     });
+  } else {
+    try { mapInstance.moveLayer('beacons-fill'); } catch {}
   }
 
   // Layer 2: Circle boundary stroke
@@ -408,6 +498,8 @@ function ensureMapLayers() {
         'line-opacity': 0.95
       }
     });
+  } else {
+    try { mapInstance.moveLayer('beacons-stroke'); } catch {}
   }
 
   // Preview source for live form input
@@ -430,6 +522,8 @@ function ensureMapLayers() {
         'fill-opacity': 0.16
       }
     });
+  } else {
+    try { mapInstance.moveLayer('preview-fill'); } catch {}
   }
 
   // Preview layer: Dashed boundary stroke
@@ -445,6 +539,8 @@ function ensureMapLayers() {
         'line-dasharray': [3, 2]
       }
     });
+  } else {
+    try { mapInstance.moveLayer('preview-stroke'); } catch {}
   }
 
   // Preview layer: Center point dot
@@ -461,6 +557,8 @@ function ensureMapLayers() {
         'circle-stroke-color': '#ffffff'
       }
     });
+  } else {
+    try { mapInstance.moveLayer('preview-center'); } catch {}
   }
 }
 
@@ -475,12 +573,18 @@ async function initMap() {
     });
   }
 
+  const rawInitStyle = BASEMAP_STYLES[currentBasemap] || BASEMAP_STYLES['carto-dark'];
+  const initStyle = typeof rawInitStyle === 'object' && rawInitStyle !== null
+    ? JSON.parse(JSON.stringify(rawInitStyle))
+    : rawInitStyle;
+
   mapInstance = new maplibregl.Map({
     container: main,
-    style: BASEMAP_STYLES[currentBasemap] || BASEMAP_STYLES['carto-dark'],
+    style: initStyle,
     center: [0, 20],
     zoom: 2,
     attributionControl: false,
+    transformStyle: (_prev, next) => applyCustomLayersToStyle(next),
     transformRequest: (url, resourceType) => {
       if (resourceType === 'Tile' && url.startsWith('https://')) {
         return {
@@ -494,18 +598,17 @@ async function initMap() {
   mapInstance.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
   mapInstance.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
-  // Handle style loads and data updates (including when switching basemaps)
-  mapInstance.on('styledata', () => {
-    if (mapInstance.isStyleLoaded()) {
-      ensureMapLayers();
-      syncMapLayers();
-      // Re-verify all beacon markers are attached
-      beacons.forEach(b => {
-        if (!markersMap.has(b.id)) {
-          createMarkerForBeacon(b);
-        }
-      });
-    }
+  // Handle style loads (including when switching basemaps)
+  mapInstance.on('style.load', () => {
+    ensureMapLayers();
+    syncMapLayers();
+    // Re-verify all beacon markers are attached
+    beacons.forEach(b => {
+      if (!markersMap.has(b.id)) {
+        createMarkerForBeacon(b);
+      }
+    });
+    mapInstance.triggerRepaint();
   });
 
   // Interactively drop beacon point via map click
@@ -559,7 +662,15 @@ function switchBasemap(styleKey) {
     localStorage.setItem(STORAGE_KEY_BASEMAP, styleKey);
   } catch {}
 
-  mapInstance.setStyle(BASEMAP_STYLES[styleKey]);
+  const rawStyle = BASEMAP_STYLES[styleKey];
+  const style = typeof rawStyle === 'object' && rawStyle !== null
+    ? JSON.parse(JSON.stringify(rawStyle))
+    : rawStyle;
+
+  mapInstance.setStyle(style, {
+    diff: false,
+    transformStyle: (_prev, next) => applyCustomLayersToStyle(next)
+  });
 }
 
 // 12. GeoJSON Generation & Layer Sync
