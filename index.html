@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multilateration Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script type="module" src="script.js"></script>
+</head>
+<body>
+  <main aria-label="Vector and Raster Tile Map"></main>
+  
+  <aside aria-label="Multilateration Controls">
+    <header>
+      <h1>Multilateration Map</h1>
+      <p>Click map to drop point. Drag pins to adjust position.</p>
+    </header>
+
+    <label>
+      <span>Basemap Style</span>
+      <select name="basemap" aria-label="Select basemap style">
+        <option value="carto-dark">CARTO Dark (Vector)</option>
+        <option value="carto-light">CARTO Light (Vector)</option>
+        <option value="google-roadmap">Google Maps (Roadmap)</option>
+        <option value="google-satellite">Google Maps (Satellite)</option>
+      </select>
+    </label>
+
+    <form autocomplete="off">
+      <fieldset>
+        <legend>Add Beacon</legend>
+        <label><span>Geohash</span><input type="text" name="geohash" placeholder="e.g. w21zc1d" pattern="^[0-9bcdefghjkmnpqrstuvwxyz]{1,12}$" title="Base32 geohash (0-9, b-z excluding a, i, l, o)" required spellcheck="false"></label>
+        <label><span>Radius</span><input type="number" name="radius" placeholder="5000" min="1" step="any" required></label>
+        <button type="submit">Add</button>
+      </fieldset>
+    </form>
+
+    <section aria-labelledby="points-heading">
+      <header>
+        <h2 id="points-heading">Active Beacons</h2>
+        <output aria-live="polite">0 beacons</output>
+      </header>
+      <template>
+        <li>
+          <input type="text" name="geohash" pattern="^[0-9bcdefghjkmnpqrstuvwxyz]{1,12}$" title="Edit geohash" spellcheck="false">
+          <input type="number" name="radius" min="1" step="any" title="Edit radius in meters">
+          <span>m</span>
+          <button type="button" aria-label="Remove beacon">×</button>
+        </li>
+      </template>
+      <ol aria-label="Beacon list"></ol>
+    </section>
+  </aside>
+</body>
+</html>
